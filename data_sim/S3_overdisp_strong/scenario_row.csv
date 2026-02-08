@@ -1,0 +1,2 @@
+"scenario_id","TT","n1","L","branching","refine_prob","graph_type","tau_phi","r","alpha_dir","gamma_lambda","lambda_a0","lambda_b0","p","beta0","beta_vals","x_sd","loge_mean","loge_sd","zi_prob","comp_mode","cp_time","cp_strength","q_drift_sd","q_conc","n_rep","seed_base"
+"S3_overdisp_strong",50,10,2,4,1,"grid",2,1,10,0.95,10,10,2,1,"0.5, 1",1,0,1,0,"static",0,1,0,10,30,1000

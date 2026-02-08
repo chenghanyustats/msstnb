@@ -1,4 +1,3 @@
-\
 # sim_icar.R
 # Simulate constrained ICAR spatial effects with sum to zero constraint
 

@@ -1,4 +1,3 @@
-\
 # utils_io.R
 # Small helpers for simulation code
 
@@ -42,6 +41,48 @@ rmultinom1 <- function(size, prob) {
   # single multinomial draw, returns integer vector
   as.integer(rmultinom(1, size = size, prob = prob)[, 1])
 }
+
+# rmultinom1 <- function(size, prob, max_chunk = .Machine$integer.max) {
+#   prob <- as.numeric(prob)
+#   K <- length(prob)
+#   assert_true(K >= 1, "prob must have positive length.")
+#   assert_true(all(is.finite(prob)), "prob must be finite.")
+#   prob[prob < 0] <- 0
+#   ps <- sum(prob)
+#   assert_true(is.finite(ps) && ps > 0, "prob must sum to a positive finite value.")
+#   prob <- prob / ps
+#
+#   assert_true(length(size) == 1, "size must be a scalar.")
+#   assert_true(is.finite(size), "size must be finite.")
+#   assert_true(size >= 0, "size must be nonnegative.")
+#
+#   size_round <- round(size)
+#   if (abs(size - size_round) > 1e-8) {
+#     warning("rmultinom1: size is not integer like; rounding to nearest integer.")
+#   }
+#   n <- as.double(size_round)
+#
+#   if (n == 0) return(rep(0, K))
+#
+#   if (n <= max_chunk) {
+#     return(as.numeric(rmultinom(1, size = as.integer(n), prob = prob)[, 1]))
+#   }
+#
+#   n_full <- floor(n / max_chunk)
+#   rem <- n - n_full * max_chunk
+#
+#   out <- numeric(K)
+#   if (n_full > 0) {
+#     for (i in seq_len(n_full)) {
+#       out <- out + as.numeric(rmultinom(1, size = as.integer(max_chunk), prob = prob)[, 1])
+#     }
+#   }
+#   if (rem > 0) {
+#     out <- out + as.numeric(rmultinom(1, size = as.integer(rem), prob = prob)[, 1])
+#   }
+#   out
+# }
+
 
 set_seed <- function(seed) {
   if (!is.null(seed) && !is.na(seed)) set.seed(as.integer(seed))

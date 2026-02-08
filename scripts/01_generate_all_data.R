@@ -1,4 +1,3 @@
-\
 # 01_generate_all_data.R
 # Driver script: generate data for all scenarios and replicates and write to disk
 
@@ -20,12 +19,16 @@ assert_true(file.exists(grid_path), paste("Missing", grid_path))
 
 scen_grid <- read.csv(grid_path, stringsAsFactors = FALSE, check.names = FALSE)
 
-required_cols <- c("scenario_id","T","n1","L","branching","refine_prob","graph_type","tau_phi",
-                   "r_size","alpha_dir","gamma_lambda","p","beta0","beta_vals","x_sd","loge_mean",
-                   "loge_sd","zi_prob","comp_mode","cp_time","cp_strength","q_drift_sd","n_rep","seed_base")
+required_cols <- c("scenario_id","TT","n1","L","branching","refine_prob",
+                   "graph_type","tau_phi",
+                   "r","alpha_dir","gamma_lambda","lambda_a0","lambda_b0",
+                   "p","beta0","beta_vals","x_sd","loge_mean",
+                   "loge_sd","zi_prob","comp_mode","cp_time","cp_strength",
+                   "q_drift_sd","q_conc", "n_rep","seed_base")
 
 missing_cols <- setdiff(required_cols, names(scen_grid))
-assert_true(length(missing_cols) == 0, paste("Scenario grid missing columns:", paste(missing_cols, collapse = ", ")))
+assert_true(length(missing_cols) == 0, paste("Scenario grid missing columns:",
+                                             paste(missing_cols, collapse = ", ")))
 
 for (s in seq_len(nrow(scen_grid))) {
   scen <- scen_grid[s, , drop = FALSE]
@@ -36,7 +39,8 @@ for (s in seq_len(nrow(scen_grid))) {
   dir_create(out_dir)
 
   # Save scenario row
-  write.csv(scen, file = file.path(out_dir, "scenario_row.csv"), row.names = FALSE, quote = TRUE)
+  write.csv(scen, file = file.path(out_dir, "scenario_row.csv"),
+            row.names = FALSE, quote = TRUE)
 
   message("Scenario ", scen_id, " with ", n_rep, " replicates")
 

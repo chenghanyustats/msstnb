@@ -1,4 +1,3 @@
-\
 # make_graph.R
 # Graph construction and ICAR intrinsic precision H
 

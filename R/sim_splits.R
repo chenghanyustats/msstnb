@@ -1,4 +1,3 @@
-\
 # sim_splits.R
 # Simulate baseline compositions q and split probabilities omega down the tree
 
@@ -22,7 +21,7 @@ spike_simplex <- function(q, strength = 3.0) {
   z / sum(z)
 }
 
-sim_splits <- function(tree, T,
+sim_splits <- function(tree, TT,
                        alpha_dir = 50,
                        comp_mode = c("static", "drift", "changepoint"),
                        cp_time = 0L,
@@ -34,7 +33,7 @@ sim_splits <- function(tree, T,
   comp_mode <- match.arg(comp_mode)
 
   assert_true(alpha_dir > 0, "alpha_dir must be positive.")
-  assert_true(T >= 1, "T must be at least 1.")
+  assert_true(TT >= 1, "T must be at least 1.")
 
   L <- tree$L
   if (L == 1) {
@@ -58,28 +57,28 @@ sim_splits <- function(tree, T,
         next
       }
 
-      qmat <- matrix(NA_real_, nrow = T, ncol = K)
+      qmat <- matrix(NA_real_, nrow = TT, ncol = K)
       qmat[1, ] <- make_initial_q(K, q_conc = q_conc)
 
       if (comp_mode == "static") {
-        for (t in 2:T) qmat[t, ] <- qmat[1, ]
+        for (t in 2:TT) qmat[t, ] <- qmat[1, ]
       }
 
       if (comp_mode == "drift") {
-        for (t in 2:T) qmat[t, ] <- perturb_simplex(qmat[t - 1, ], sd = q_drift_sd)
+        for (t in 2:TT) qmat[t, ] <- perturb_simplex(qmat[t - 1, ], sd = q_drift_sd)
       }
 
       if (comp_mode == "changepoint") {
-        for (t in 2:T) qmat[t, ] <- qmat[1, ]
-        if (!is.null(cp_time) && cp_time > 0 && cp_time < T) {
+        for (t in 2:TT) qmat[t, ] <- qmat[1, ]
+        if (!is.null(cp_time) && cp_time > 0 && cp_time < TT) {
           q_new <- spike_simplex(qmat[1, ], strength = cp_strength)
-          qmat[(cp_time + 1):T, ] <- matrix(q_new, nrow = T - cp_time, ncol = K, byrow = TRUE)
+          qmat[(cp_time + 1):TT, ] <- matrix(q_new, nrow = TT - cp_time, ncol = K, byrow = TRUE)
         }
       }
 
       # Omega draws
-      omega_mat <- matrix(NA_real_, nrow = T, ncol = K)
-      for (t in seq_len(T)) {
+      omega_mat <- matrix(NA_real_, nrow = TT, ncol = K)
+      for (t in seq_len(TT)) {
         omega_mat[t, ] <- rdirichlet1(alpha_dir * qmat[t, ])
       }
 

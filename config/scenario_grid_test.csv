@@ -1,2 +1,0 @@
-"scenario_id","T","n1","L","branching","refine_prob","graph_type","tau_phi","r_size","alpha_dir","gamma_lambda","p","beta0","beta_vals","x_sd","loge_mean","loge_sd","zi_prob","comp_mode","cp_time","cp_strength","q_drift_sd","n_rep","seed_base"
-"S0",100,5,2,"4",1,"grid",4,20,50,0.98,2,-7,"0.25, -0.15",1,9.5,0.3,0,"static",0,1,0,30,1000
