@@ -1,0 +1,15 @@
+Package: msstnb
+Type: Package
+Title: Multiscale Spatio-Temporal Negative Binomial Model (MSSTNB)
+Version: 0.0.0.9000
+Authors@R: c(
+    person("Cheng-Han", "Yu", role = c("aut", "cre"), email = "")
+)
+Description: Research code for MSSTNB Algorithm 2 MCMC, organized for later R package development.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Imports:
+    Matrix
+Suggests:
+    stats
