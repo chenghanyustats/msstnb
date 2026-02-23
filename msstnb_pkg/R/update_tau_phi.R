@@ -9,7 +9,7 @@ update_tau_phi <- function(phi, H, a_phi, b_phi) {
     Matrix <- getNamespace("Matrix")
 
     n1 <- length(phi)
-    assert_true(Matrix::nrow(H) == n1 && Matrix::ncol(H) == n1,
+    assert_true(nrow(H) == n1 && ncol(H) == n1,
                 "H dimension mismatch.")
     assert_true(a_phi > 0 && b_phi > 0, "a_phi and b_phi must be positive.")
 

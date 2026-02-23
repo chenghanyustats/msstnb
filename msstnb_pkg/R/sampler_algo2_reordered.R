@@ -36,7 +36,27 @@ msstnb_algo2_mcmc <- function(data, hyper, mcmc, init = NULL, seed = NULL,
                 "update_discounts_every must be >= 1.")
 
     # r proposal
-    prop_sd_r <- as.numeric(mcmc$prop_sd_r %||% 0.2)
+    prop_sd_r_init <- as.numeric(mcmc$prop_sd_r %||% 0.2)
+    assert_true(is.finite(prop_sd_r_init) && prop_sd_r_init > 0,
+                "prop_sd_r must be positive.")
+
+    # Adaptive MH for r
+    adapt_r <- isTRUE(mcmc$adapt_r %||% FALSE)
+    adapt_r_window <- as.integer(mcmc$adapt_r_window %||% 100L)
+    adapt_r_target <- as.numeric(mcmc$adapt_r_target %||% 0.30)
+    adapt_r_gamma0 <- as.numeric(mcmc$adapt_r_gamma0 %||% 0.05)
+    adapt_r_t0 <- as.numeric(mcmc$adapt_r_t0 %||% 10)
+    adapt_r_power <- as.numeric(mcmc$adapt_r_power %||% 0.5)
+    adapt_r_min_sd <- as.numeric(mcmc$adapt_r_min_sd %||% 0.01)
+    adapt_r_max_sd <- as.numeric(mcmc$adapt_r_max_sd %||% 2.0)
+    adapt_r_until <- as.integer(mcmc$adapt_r_until %||% burn)
+
+    if (adapt_r) {
+        assert_true(adapt_r_window >= 5L, "adapt_r_window must be >= 5.")
+        assert_true(adapt_r_target > 0 && adapt_r_target < 1,
+                    "adapt_r_target must be in (0, 1).")
+        assert_true(adapt_r_until >= 1L, "adapt_r_until must be >= 1.")
+    }
 
     # Data
     y_levels <- data$y_levels
@@ -92,6 +112,13 @@ msstnb_algo2_mcmc <- function(data, hyper, mcmc, init = NULL, seed = NULL,
     ess_steps_beta <- integer(n_iter)
     ess_steps_phi  <- integer(n_iter)
     accept_r <- numeric(n_iter)
+
+    accept_r_window <- rep(NA_real_, n_iter)
+    prop_sd_r_trace <- rep(NA_real_, n_iter)
+    acc_r_count_postburn <- integer(n1)
+    n_postburn <- 0L
+
+    prop_sd_r_curr <- prop_sd_r_init
 
     save_idx <- 0L
 
@@ -172,10 +199,36 @@ msstnb_algo2_mcmc <- function(data, hyper, mcmc, init = NULL, seed = NULL,
             kappa = state$kappa,
             a_r = hyper$r$a_r,
             b_r = hyper$r$b_r,
-            prop_sd = prop_sd_r
+            prop_sd = prop_sd_r_curr
         )
         state$r1 <- r_out$r1
         accept_r[iter] <- r_out$accept
+        prop_sd_r_trace[iter] <- prop_sd_r_curr
+
+        # post-burn acceptance by region
+        if (iter > burn) {
+            acc_r_count_postburn <- acc_r_count_postburn +
+              as.integer(r_out$accept_vec)
+            n_postburn <- n_postburn + 1L
+        }
+
+        # adapt proposal sd for r using recent M iterations acceptance rate
+        if (adapt_r && iter <= adapt_r_until) {
+            w0 <- max(1L, iter - adapt_r_window + 1L)
+            acc_bar <- mean(accept_r[w0:iter])
+            accept_r_window[iter] <- acc_bar
+            prop_sd_r_curr <- adapt_prop_sd_r(
+                prop_sd = prop_sd_r_curr,
+                acc_bar = acc_bar,
+                target = adapt_r_target,
+                iter = iter,
+                gamma0 = adapt_r_gamma0,
+                t0 = adapt_r_t0,
+                power = adapt_r_power,
+                min_sd = adapt_r_min_sd,
+                max_sd = adapt_r_max_sd
+            )
+        }
 
         # Precompute eta and xi once (used by discounts and lambda FFBS)
         eta <- compute_eta(
@@ -269,13 +322,15 @@ msstnb_algo2_mcmc <- function(data, hyper, mcmc, init = NULL, seed = NULL,
         if (verbose && (iter %% (mcmc$progress_every %||% 50L) == 0L)) {
             message(
                 sprintf(
-                    "iter %d/%d | ESS(beta) %d | ESS(phi) %d | acc(r) %.2f",
+                    "iter %d/%d | ESS(beta) %d | ESS(phi) %d | acc(r) %.2f | sd(r) %.3f",
                     iter, n_iter, ess_steps_beta[iter], ess_steps_phi[iter],
-                    accept_r[iter]
+                    accept_r[iter], prop_sd_r_trace[iter]
                 )
             )
         }
     }
+
+    accept_r_by_region_postburn <- acc_r_count_postburn / max(1L, n_postburn)
 
     out <- list(
         draws = list(
@@ -291,7 +346,11 @@ msstnb_algo2_mcmc <- function(data, hyper, mcmc, init = NULL, seed = NULL,
         diag = list(
             ess_steps_beta = ess_steps_beta,
             ess_steps_phi  = ess_steps_phi,
-            accept_r = accept_r
+            accept_r = accept_r,
+            acc_r = accept_r,
+            accept_r_window = accept_r_window,
+            prop_sd_r = prop_sd_r_trace,
+            accept_r_by_region_postburn = accept_r_by_region_postburn
         ),
         state_last = state,
         cache = list(

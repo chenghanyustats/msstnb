@@ -74,33 +74,119 @@ rdirichlet_mat <- function(alpha_mat) {
 
 # Build ICAR intrinsic precision H from an undirected edge list (i,j), 1-based.
 # Optional weights g_ij (defaults to 1).
+# build_H_from_edges <- function(edges, n1) {
+#     assert_true(n1 >= 1, "n1 must be >= 1.")
+#     assert_true(all(c("i", "j") %in% names(edges)), "edges must have columns i and j.")
+#
+#     if (!requireNamespace("Matrix", quietly = TRUE)) {
+#         stop("Package 'Matrix' is required.", call. = FALSE)
+#     }
+#
+#     if (!("g" %in% names(edges))) {
+#         edges$g <- 1
+#     }
+#
+#     edges$i <- as.integer(edges$i)
+#     edges$j <- as.integer(edges$j)
+#     edges$g <- as.numeric(edges$g)
+#
+#     ii <- c(edges$i, edges$j)
+#     jj <- c(edges$j, edges$i)
+#     vv <- c(edges$g, edges$g)
+#
+#     W <- Matrix::sparseMatrix(i = ii, j = jj, x = vv, dims = c(n1, n1))
+#     diag(W) <- 0
+#
+#     d <- Matrix::rowSums(W)
+#     H <- Matrix::Diagonal(n = n1, x = d) - W
+#     Matrix::forceSymmetric(H)
+# }
+
+
+# Build ICAR intrinsic precision H from an undirected edge list.
+# Accepts edges as:
+#   1) data.frame with columns i, j (optional g)
+#   2) data.frame with columns from, to (optional g) as in igraph
+#   3) matrix with at least 2 columns (treated as i, j)
+# Indices are assumed 1 based. If 0 based indices are detected, they are shifted to 1 based.
 build_H_from_edges <- function(edges, n1) {
-    assert_true(n1 >= 1, "n1 must be >= 1.")
-    assert_true(all(c("i", "j") %in% names(edges)), "edges must have columns i and j.")
+  assert_true(n1 >= 1L, "n1 must be >= 1.")
+  assert_true(!is.null(edges), "edges is NULL.")
 
-    if (!requireNamespace("Matrix", quietly = TRUE)) {
-        stop("Package 'Matrix' is required.", call. = FALSE)
-    }
+  if (!requireNamespace("Matrix", quietly = TRUE)) {
+    stop("Package 'Matrix' is required.", call. = FALSE)
+  }
 
-    if (!("g" %in% names(edges))) {
-        edges$g <- 1
-    }
+  to_int <- function(z) {
+    if (is.factor(z)) z <- as.character(z)
+    z <- suppressWarnings(as.integer(z))
+    z
+  }
 
-    edges$i <- as.integer(edges$i)
-    edges$j <- as.integer(edges$j)
-    edges$g <- as.numeric(edges$g)
+  # Normalize edges to data.frame
+  if (is.matrix(edges)) {
+    assert_true(ncol(edges) >= 2L, "edges matrix must have at least 2 columns.")
+    edges <- as.data.frame(edges, stringsAsFactors = FALSE)
+  } else if (!is.data.frame(edges)) {
+    edges <- as.data.frame(edges, stringsAsFactors = FALSE)
+  }
 
-    ii <- c(edges$i, edges$j)
-    jj <- c(edges$j, edges$i)
-    vv <- c(edges$g, edges$g)
+  nm <- names(edges)
+  if (is.null(nm)) nm <- character(0)
 
-    W <- Matrix::sparseMatrix(i = ii, j = jj, x = vv, dims = c(n1, n1))
-    diag(W) <- 0
+  # Map common column names to i and j
+  if (all(c("from", "to") %in% nm)) {
+    names(edges)[match("from", names(edges))] <- "i"
+    names(edges)[match("to", names(edges))] <- "j"
+  } else if (all(c("v1", "v2") %in% nm)) {
+    names(edges)[match("v1", names(edges))] <- "i"
+    names(edges)[match("v2", names(edges))] <- "j"
+  } else if (!all(c("i", "j") %in% nm)) {
+    # No usable names, treat first two columns as i and j
+    assert_true(ncol(edges) >= 2L, "edges must have at least 2 columns.")
+    edges$i <- edges[[1]]
+    edges$j <- edges[[2]]
+  }
 
-    d <- Matrix::rowSums(W)
-    H <- Matrix::Diagonal(n = n1, x = d) - W
-    Matrix::forceSymmetric(H)
+  if (!("g" %in% names(edges))) {
+    edges$g <- 1
+  }
+
+  edges <- edges[, c("i", "j", "g"), drop = FALSE]
+
+  edges$i <- to_int(edges$i)
+  edges$j <- to_int(edges$j)
+  edges$g <- as.numeric(edges$g)
+
+  assert_true(!anyNA(edges$i) && !anyNA(edges$j), "edges i or j contain non numeric values.")
+  assert_true(all(is.finite(edges$g)) && all(edges$g > 0), "edge weights g must be positive.")
+
+  # Detect 0 based indexing and shift to 1 based
+  min_idx <- min(c(edges$i, edges$j))
+  if (is.finite(min_idx) && min_idx == 0L) {
+    edges$i <- edges$i + 1L
+    edges$j <- edges$j + 1L
+  }
+
+  assert_true(all(edges$i >= 1L & edges$i <= n1), "edges$i out of range.")
+  assert_true(all(edges$j >= 1L & edges$j <= n1), "edges$j out of range.")
+
+  # Remove self loops
+  edges <- edges[edges$i != edges$j, , drop = FALSE]
+
+  ii <- c(edges$i, edges$j)
+  jj <- c(edges$j, edges$i)
+  vv <- c(edges$g, edges$g)
+
+  W <- Matrix::sparseMatrix(i = ii, j = jj, x = vv, dims = c(n1, n1))
+  diag(W) <- 0
+
+  d <- Matrix::rowSums(W)
+  H <- Matrix::Diagonal(n = n1, x = d) - W
+
+  Matrix::forceSymmetric(H)
 }
+
 
 # Orthonormal basis B spanning {phi: 1'phi = 0}.
 # Uses QR of the 1-vector. Returns B (n1 x (n1-1)) and q1 (first column).

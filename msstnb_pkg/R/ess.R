@@ -52,12 +52,15 @@ draw_nu_cholSigma <- function(cholSigma, tol = 1e-12) {
     upper_ok <- all(abs(cholSigma[lower.tri(cholSigma)]) < tol)
     lower_ok <- all(abs(cholSigma[upper.tri(cholSigma)]) < tol)
 
-    if (upper_ok && !lower_ok) {
+    if (upper_ok) {
       return(as.numeric(t(cholSigma) %*% z))
     }
-    if (lower_ok && !upper_ok) {
+    if (lower_ok) {
       return(as.numeric(cholSigma %*% z))
     }
 
-    stop("cholSigma must be triangular (upper or lower).", call. = FALSE)
+    stop("cholSigma must be triangular (upper or lower).")
+
+
+    # stop("cholSigma must be triangular (upper or lower).", call. = FALSE)
 }

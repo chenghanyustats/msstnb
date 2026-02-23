@@ -1,9 +1,9 @@
-# 02_fit_one_replicate.R
-# Run MSSTNB Algorithm 2 for one replicate from an interactive R session (no terminal args).
+# 02_fit_one_replicate_interactive.R
+# Run MSSTNB Algorithm 2 for one replicate from an interactive R session.
 #
 # How to use
 #   1. Open this file in RStudio
-#   2. Edit the user settings section
+#   2. Edit the user settings section below
 #   3. Run the whole script
 
 
@@ -13,6 +13,14 @@
 
 # Project root folder that contains the R folder
 project_root <- "."
+
+# Path to the msstnb_pkg folder (code lives under msstnb_pkg/R)
+# Default assumes your folder structure is:
+#   project_root/
+#     data_sim/
+#     mcmc_out/
+#     msstnb_pkg/
+pkg_root <- file.path(project_root, "msstnb_pkg")
 
 # Choose one of the two input methods
 
@@ -42,13 +50,11 @@ store_gamma <- TRUE
 store_delta <- TRUE
 store_r <- FALSE
 
-# Discount update schedule
+# Sampler tuning
+prop_sd_r <- 0.2
 update_discounts_every <- 1L
 
-# Proposal scale for r update
-prop_sd_r_init <- 0.2
-
-# Adaptive Metropolis Hastings for r
+# Adaptive Metropolis-Hastings for r (global prop_sd_r)
 adapt_r <- TRUE
 adapt_r_window <- 100L
 adapt_r_target <- 0.30
@@ -58,11 +64,13 @@ adapt_r_power <- 0.5
 adapt_r_min_sd <- 0.01
 adapt_r_max_sd <- 2.0
 
-# By default, adapt only during burn in
+# By default, adapt only during burn-in. Set to NULL to use burn.
 adapt_r_until <- NULL
 
 # Optional discount grids
 # Set to NULL to use the defaults inside msstnb_algo2_mcmc
+# gamma_grid <- seq(0.05, 0.999, length.out = 200L)
+# delta_grid <- seq(0.05, 0.999, length.out = 200L)
 gamma_grid <- NULL
 delta_grid <- NULL
 
@@ -72,6 +80,7 @@ q0_splits <- NULL
 
 # Optional time index for discount updates
 # Use NULL for all times
+# Example: discount_time_idx <- 10:TT
 discount_time_idx <- NULL
 
 
@@ -93,7 +102,9 @@ source_msstnb_algo2 <- function(project_root) {
     r_dir <- file.path(project_root, "R")
 
     files <- c(
+        "cache.R",
         "utils.R",
+        "tree_utils.R",
         "ess.R",
         "loglik.R",
         "update_kappa.R",
@@ -115,8 +126,7 @@ source_msstnb_algo2 <- function(project_root) {
             paste(
                 "Missing files under", shQuote(r_dir), ":\n",
                 paste(missing, collapse = "\n")
-            ),
-            call. = FALSE
+            )
         )
     }
 
@@ -125,16 +135,10 @@ source_msstnb_algo2 <- function(project_root) {
     }
 
     if (!exists("msstnb_algo2_mcmc", mode = "function")) {
-        stop("msstnb_algo2_mcmc was not found after sourcing files", call. = FALSE)
+        stop("msstnb_algo2_mcmc was not found after sourcing files")
     }
 
     invisible(TRUE)
-}
-
-get_diag_list <- function(fit) {
-    if (!is.null(fit$diag) && is.list(fit$diag)) return(fit$diag)
-    if (!is.null(fit$draws$diagnostics) && is.list(fit$draws$diagnostics)) return(fit$draws$diagnostics)
-    NULL
 }
 
 
@@ -156,20 +160,22 @@ if (is.null(in_file)) {
 }
 
 if (!file.exists(in_file)) {
-    stop(paste("Input file does not exist:", shQuote(in_file)), call. = FALSE)
+    stop(paste("Input file does not exist:", shQuote(in_file)))
 }
 
 # 2. Source the sampler and all dependencies
-source_msstnb_algo2(project_root)
+source_msstnb_algo2(pkg_root)
 
 # 3. Load one replicate
 ds <- readRDS(in_file)
 if (is.null(ds$data)) {
-    stop("The input rds does not contain ds$data", call. = FALSE)
+    stop("The input rds does not contain ds$data")
 }
+
 data <- ds$data
 
 # 4. Build hyperparameters
+# data$x is TT by n1 by p
 p <- dim(data$x)[3]
 hyper <- default_hyper(p = p)
 
@@ -184,9 +190,7 @@ mcmc <- list(
     n_iter = as.integer(n_iter),
     burn = as.integer(burn),
     thin = as.integer(thin),
-
-    # r update
-    prop_sd_r = as.numeric(prop_sd_r_init),
+    prop_sd_r = prop_sd_r,
     adapt_r = isTRUE(adapt_r),
     adapt_r_window = as.integer(adapt_r_window),
     adapt_r_target = as.numeric(adapt_r_target),
@@ -196,16 +200,12 @@ mcmc <- list(
     adapt_r_min_sd = as.numeric(adapt_r_min_sd),
     adapt_r_max_sd = as.numeric(adapt_r_max_sd),
     adapt_r_until = as.integer(adapt_r_until),
-
-    # other controls
     update_discounts_every = as.integer(update_discounts_every),
     store_phi = isTRUE(store_phi),
     store_lambda = isTRUE(store_lambda),
     store_gamma = isTRUE(store_gamma),
     store_delta = isTRUE(store_delta),
     store_r = isTRUE(store_r),
-
-    # optional overrides
     gamma_grid = gamma_grid,
     delta_grid = delta_grid,
     q0_splits = q0_splits,
@@ -235,28 +235,26 @@ out_dir <- dirname(out_file)
 if (!dir.exists(out_dir)) {
     dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 }
+
 saveRDS(fit, out_file)
 cat("Saved fit to:", out_file, "\n")
 
-# 8. Quick diagnostics
-diag <- get_diag_list(fit)
-if (!is.null(diag)) {
-    if (!is.null(diag$accept_r) && length(diag$accept_r) > 0) {
-        cat("Mean accept fraction across regions (all iters):", mean(diag$accept_r), "\n")
-        if (burn < length(diag$accept_r)) {
-            cat("Mean accept fraction across regions (post burn):", mean(diag$accept_r[(burn + 1L):length(diag$accept_r)]), "\n")
+# 8. Quick diagnostics summary
+if (!is.null(fit$diag) && is.list(fit$diag)) {
+    if (!is.null(fit$diag$accept_r)) {
+        cat("Mean accept fraction across regions (all iters): ", mean(fit$diag$accept_r), "\n", sep = "")
+        if (burn < length(fit$diag$accept_r)) {
+            cat("Mean accept fraction across regions (post burn): ", mean(fit$diag$accept_r[(burn + 1L):length(fit$diag$accept_r)]), "\n", sep = "")
         }
     }
-
-    if (!is.null(diag$accept_r_by_region_postburn)) {
-        x <- as.numeric(diag$accept_r_by_region_postburn)
+    if (!is.null(fit$diag$accept_r_by_region_postburn)) {
+        x <- as.numeric(fit$diag$accept_r_by_region_postburn)
         cat("Acceptance by region post burn summary:\n")
-        cat("  min :", min(x), "\n")
-        cat("  mean:", mean(x), "\n")
-        cat("  max :", max(x), "\n")
+        cat("  min : ", min(x), "\n", sep = "")
+        cat("  mean: ", mean(x), "\n", sep = "")
+        cat("  max : ", max(x), "\n", sep = "")
     }
-
-    if (!is.null(diag$prop_sd_r) && length(diag$prop_sd_r) > 0) {
-        cat("prop sd r last value:", diag$prop_sd_r[length(diag$prop_sd_r)], "\n")
+    if (!is.null(fit$diag$prop_sd_r)) {
+        cat("prop sd r last value: ", tail(fit$diag$prop_sd_r, 1), "\n", sep = "")
     }
 }

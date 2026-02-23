@@ -53,7 +53,7 @@ prep_beta_ess <- function(y1, e1, kappa, lambda_tilde_0T, phi, Xmat = NULL,
             log(pmax(lam_t, 1e-300))
     )
 
-    phi_rep <- rep.int(as.numeric(phi), each = TT)
+    phi_rep <- rep(as.numeric(phi), each = TT)
 
     if (is.null(Xmat)) {
         assert_true(!is.null(x1), "Provide x1 when Xmat is NULL.")
